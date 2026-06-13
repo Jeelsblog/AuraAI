@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="AuraAI — Your AI-powered mental wellness companion for NEET, JEE, CUET, CAT, GATE & UPSC preparation. Track mood, journal daily, and get personalized support." />
+  <meta name="theme-color" content="#080b14" />
+  <title>AuraAI — Mental Wellness Tracker for Exam Aspirants</title>
+
+  <!-- Preconnect for performance -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- DOMPurify for XSS protection on dynamic content -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.5/purify.min.js"
+          integrity="sha512-1rSNe/MFZQ8SHIWp7SMMB7KnNhPNFaL7iqwnvXJRipBdIZPakw0lPJNbcvM7I/ygsDSxFNRH4RJhRQVUzBkA=="
+          crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+  <!-- Chart.js for mood trend visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"
+          integrity="sha256-I5RYjPWHXLLVROLnEoxVZbhQ8KpFgJaEn8mS3G0XNEU="
+          crossorigin="anonymous"></script>
+</head>
+
+<body>
+  <!-- ── Onboarding Modal ─────────────────────────────────────── -->
+  <div id="onboarding-overlay" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+    <div class="onboarding-card">
+      <div class="onboarding-logo" aria-hidden="true">🧠</div>
+      <h1 id="onboarding-title">Welcome to AuraAI</h1>
+      <p>Your empathetic AI companion through your exam journey. Let's get you set up in 30 seconds.</p>
+
+      <form class="onboarding-form" id="onboarding-form" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="onboard-name">Your first name</label>
+          <input
+            class="form-input"
+            type="text"
+            id="onboard-name"
+            name="name"
+            placeholder="e.g. Priya"
+            autocomplete="given-name"
+            maxlength="100"
+            required
+            aria-required="true"
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" id="exam-label">I'm preparing for</label>
+          <div class="exam-grid" role="group" aria-labelledby="exam-label">
+            <button type="button" class="exam-option" data-exam="NEET" aria-pressed="false">NEET</button>
+            <button type="button" class="exam-option" data-exam="JEE"  aria-pressed="false">JEE</button>
+            <button type="button" class="exam-option" data-exam="CUET" aria-pressed="false">CUET</button>
+            <button type="button" class="exam-option" data-exam="CAT"  aria-pressed="false">CAT</button>
+            <button type="button" class="exam-option" data-exam="GATE" aria-pressed="false">GATE</button>
+            <button type="button" class="exam-option" data-exam="UPSC" aria-pressed="false">UPSC</button>
+          </div>
+          <input type="hidden" id="onboard-exam" name="examType" />
+        </div>
+
+        <button type="submit" class="btn btn-primary w-full" id="onboard-submit" disabled>
+          Start my wellness journey →
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Main App ─────────────────────────────────────────────── -->
+  <div id="app" hidden>
+
+    <!-- Header -->
+    <header id="app-header">
+      <div class="header-inner">
+        <a class="logo" href="#" aria-label="AuraAI Home">
+          <div class="logo-icon" aria-hidden="true">🧠</div>
+          <span class="logo-text">AuraAI</span>
+        </a>
+
+        <div class="header-user">
+          <div class="user-badge" aria-label="User profile">
+            <span id="header-greeting">Hey, —</span>
+            <span class="exam-pill" id="header-exam" aria-label="Exam type">—</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Tab Navigation -->
+    <nav id="tab-nav" aria-label="Main navigation">
+      <ul class="tab-list" role="tablist">
+        <li role="presentation">
+          <button
+            class="tab-btn"
+            id="tab-checkin-btn"
+            role="tab"
+            aria-selected="true"
+            aria-controls="tab-checkin"
+            data-tab="checkin"
+          >
+            <span aria-hidden="true">✍️</span> Daily Check-In
+          </button>
+        </li>
+        <li role="presentation">
+          <button
+            class="tab-btn"
+            id="tab-insights-btn"
+            role="tab"
+            aria-selected="false"
+            aria-controls="tab-insights"
+            data-tab="insights"
+          >
+            <span aria-hidden="true">🔍</span> AI Insights
+          </button>
+        </li>
+        <li role="presentation">
+          <button
+            class="tab-btn"
+            id="tab-dashboard-btn"
+            role="tab"
+            aria-selected="false"
+            aria-controls="tab-dashboard"
+            data-tab="dashboard"
+          >
+            <span aria-hidden="true">📊</span> Dashboard
+          </button>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- Main Content -->
+    <main id="main-content">
+
+      <!-- ── Tab 1: Daily Check-In ───────────────────────────── -->
+      <section id="tab-checkin" class="tab-panel active" role="tabpanel" aria-labelledby="tab-checkin-btn">
+        <div class="checkin-header">
+          <h1 id="checkin-greeting">Good morning ✨</h1>
+          <p id="checkin-date">—</p>
+        </div>
+
+        <div class="checkin-grid">
+
+          <!-- Mood Card -->
+          <div class="glass-card mood-card">
+            <div class="form-group">
+              <label class="form-label" id="mood-label">How are you feeling right now?</label>
+
+              <!-- Emoji shortcuts -->
+              <div class="mood-emojis" role="group" aria-label="Quick mood selection">
+                <button class="mood-emoji-item" data-mood="2" aria-label="Very anxious, mood 2" title="Very Anxious">😰</button>
+                <button class="mood-emoji-item" data-mood="4" aria-label="Feeling low, mood 4" title="Low">😔</button>
+                <button class="mood-emoji-item" data-mood="5" aria-label="Neutral, mood 5" title="Neutral">😐</button>
+                <button class="mood-emoji-item" data-mood="7" aria-label="Feeling good, mood 7" title="Good">😊</button>
+                <button class="mood-emoji-item" data-mood="9" aria-label="Excellent, mood 9" title="Excellent">🌟</button>
+              </div>
+
+              <input
+                type="range"
+                class="mood-slider"
+                id="mood-slider"
+                min="1"
+                max="10"
+                value="5"
+                step="1"
+                aria-labelledby="mood-label"
+                aria-valuemin="1"
+                aria-valuemax="10"
+                aria-valuenow="5"
+              />
+              <div class="mood-value-row">
+                <span class="mood-score-display" id="mood-score-display" aria-live="polite">5</span>
+                <span class="mood-label" id="mood-label-text" aria-live="polite">Neutral</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Journal Card -->
+          <div class="glass-card journal-card">
+            <div class="form-group">
+              <label class="form-label" for="journal-textarea">What's on your mind today?</label>
+              <textarea
+                class="form-textarea"
+                id="journal-textarea"
+                name="journalText"
+                placeholder="Write freely — how did studying go? Any thoughts weighing on you? Your fears, small wins, anything..."
+                maxlength="5000"
+                aria-required="true"
+                aria-describedby="char-count"
+              ></textarea>
+              <div class="char-counter" id="char-count" aria-live="polite">0 / 5000</div>
+            </div>
+
+            <div class="journal-actions">
+              <p class="text-sm text-muted">AI analysis typically takes 5–10 seconds</p>
+              <button class="btn btn-primary" id="submit-journal-btn" disabled aria-busy="false">
+                Analyze with AI ✨
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Analysis Result (hidden until submitted) -->
+        <div class="analysis-result" id="analysis-result" aria-live="polite" aria-label="AI analysis results">
+
+          <div id="analysis-stress-badge" class="stress-badge" role="status"></div>
+
+          <div class="analysis-grid">
+            <!-- Triggers -->
+            <div class="glass-card analysis-section">
+              <h3>Hidden Stress Triggers</h3>
+              <div class="tag-list" id="analysis-triggers" aria-label="Identified stress triggers"></div>
+            </div>
+
+            <!-- Patterns -->
+            <div class="glass-card analysis-section">
+              <h3>Emotional Patterns</h3>
+              <div class="tag-list" id="analysis-patterns" aria-label="Emotional patterns detected"></div>
+            </div>
+          </div>
+
+          <!-- Strategies -->
+          <div class="glass-card analysis-section mt-4">
+            <h3>Personalized Coping Strategies</h3>
+            <div id="analysis-strategies" aria-label="Recommended coping strategies"></div>
+          </div>
+
+          <!-- Mindfulness Exercise -->
+          <div class="glass-card mindfulness-card mt-4" id="mindfulness-section">
+            <div class="mindfulness-header">
+              <h3 class="mindfulness-name" id="mindfulness-name">—</h3>
+              <span class="exam-pill" id="mindfulness-duration">—</span>
+            </div>
+            <ol class="mindfulness-steps" id="mindfulness-steps" aria-label="Mindfulness exercise steps"></ol>
+          </div>
+
+          <!-- Motivational Message -->
+          <div class="motivation-card glass-card mt-4">
+            <p class="motivation-text" id="motivation-message" aria-live="polite"></p>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ── Tab 2: AI Insights ────────────────────────────────── -->
+      <section id="tab-insights" class="tab-panel" role="tabpanel" aria-labelledby="tab-insights-btn" hidden>
+        <div class="insights-header">
+          <div>
+            <h1>Weekly Insights</h1>
+            <p>AI-powered pattern analysis from your journal entries</p>
+          </div>
+          <button class="btn btn-secondary" id="refresh-insights-btn" aria-label="Refresh weekly insights">
+            ↻ Refresh
+          </button>
+        </div>
+
+        <div id="insights-content" aria-live="polite">
+          <div class="empty-state insights-placeholder">
+            <div class="empty-icon" aria-hidden="true">🔍</div>
+            <h3>Loading your insights...</h3>
+            <p>Journal for a few days to unlock deep pattern analysis</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Tab 3: Dashboard ──────────────────────────────────── -->
+      <section id="tab-dashboard" class="tab-panel" role="tabpanel" aria-labelledby="tab-dashboard-btn" hidden>
+        <div style="margin-bottom: 28px;">
+          <h1>Mood Dashboard</h1>
+          <p>Your wellness journey over time</p>
+        </div>
+
+        <div class="dashboard-grid">
+          <!-- Chart -->
+          <div class="glass-card chart-card">
+            <h2>7-Day Mood Trend</h2>
+            <div class="chart-container">
+              <canvas id="mood-chart" role="img" aria-label="7-day mood trend chart"></canvas>
+            </div>
+          </div>
+
+          <!-- Weekly Summary -->
+          <div class="glass-card weekly-summary" id="weekly-summary-card" aria-live="polite">
+            <h2 class="mb-4">This Week</h2>
+            <div class="empty-state" style="padding: 30px 0;">
+              <p>Submit your first journal entry to see your weekly summary</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Past Entries -->
+        <div class="entries-list mt-8">
+          <h2 class="mb-4">Past Entries</h2>
+          <div id="entries-list" aria-label="Past journal entries" aria-live="polite">
+            <div class="empty-state">
+              <div class="empty-icon" aria-hidden="true">📔</div>
+              <h3>No entries yet</h3>
+              <p>Start your first daily check-in to begin your wellness journey</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ── Floating Chat Widget ─────────────────────────────────── -->
+  <div id="chat-widget">
+    <!-- Chat Panel -->
+    <div id="chat-panel" class="glass-card" role="dialog" aria-label="Chat with Aura" aria-modal="false" hidden>
+      <div class="chat-header">
+        <div class="chat-header-info">
+          <div class="aura-avatar" aria-hidden="true">🌸</div>
+          <div>
+            <div class="aura-name">Aura</div>
+            <div class="aura-status">● Online — here for you</div>
+          </div>
+        </div>
+        <button
+          class="btn-icon"
+          id="chat-close-btn"
+          aria-label="Close chat"
+          title="Close"
+        >✕</button>
+      </div>
+
+      <div id="chat-messages" role="log" aria-live="polite" aria-label="Chat conversation">
+        <!-- Messages rendered by JS -->
+      </div>
+
+      <div id="chat-input-area">
+        <textarea
+          id="chat-input"
+          placeholder="Talk to Aura..."
+          rows="1"
+          maxlength="2000"
+          aria-label="Message Aura"
+          aria-multiline="true"
+        ></textarea>
+        <button
+          id="chat-send"
+          aria-label="Send message"
+          title="Send"
+          disabled
+        >→</button>
+      </div>
+    </div>
+
+    <!-- Toggle Button -->
+    <button
+      id="chat-toggle"
+      aria-label="Open chat with Aura"
+      aria-expanded="false"
+      aria-controls="chat-panel"
+      title="Chat with Aura"
+    >
+      <span aria-hidden="true">💬</span>
+      <span class="chat-badge" id="chat-badge" aria-label="New messages"></span>
+    </button>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- App Script -->
+  <script src="app.js"></script>
+</body>
+</html>
