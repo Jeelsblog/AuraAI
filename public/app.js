@@ -267,6 +267,16 @@ function updateHeader() {
   const { name, examType } = state.user;
   setTextSafe(document.getElementById('header-greeting'), `Hey, ${name} 👋`);
   setTextSafe(document.getElementById('header-exam'), examType);
+
+  // Logout
+  const logoutBtn = document.getElementById('logout-btn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', () => {
+      if (!confirm('Log out of AuraAI? Your data will still be saved.')) { return; }
+      localStorage.removeItem('auraai_user');
+      location.reload();
+    });
+  }
 }
 
 // ── Check-In Greeting ─────────────────────────────────────────

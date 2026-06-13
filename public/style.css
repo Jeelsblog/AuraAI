@@ -252,6 +252,27 @@ p  { color: var(--text-secondary); font-size: 0.9rem; }
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
+.btn-logout {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s, border-color 0.2s, transform 0.15s;
+  flex-shrink: 0;
+}
+.btn-logout:hover {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.4);
+  transform: scale(1.08);
+}
+.btn-logout:active { transform: scale(0.95); }
 
 /* ── Navigation ─────────────────────────────────────────────── */
 #tab-nav {
