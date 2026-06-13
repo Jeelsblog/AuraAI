@@ -77,8 +77,18 @@ async function apiFetch(url, options = {}) {
 
 // ── Safe Text Rendering (XSS prevention) ─────────────────────
 function sanitizeText(str) {
-  // DOMPurify strips all HTML — safe for textContent assignment
-  return DOMPurify.sanitize(String(str || ''), { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
+  const s = String(str == null ? '' : str);
+  // Use DOMPurify if loaded; strip all HTML tags for plain text output
+  if (typeof DOMPurify !== 'undefined') {
+    return DOMPurify.sanitize(s, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
+  }
+  // Fallback: manual HTML entity encoding (safe for textContent)
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
 }
 
 function setTextSafe(el, text) {

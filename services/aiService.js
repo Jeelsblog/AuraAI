@@ -1,8 +1,9 @@
 'use strict';
 
 const OpenAI = require('openai');
+const logger = require('../utils/logger');
 
-// ─── Client Setup ────────────────────────────────────────────────────────────
+// ─── Client Setup ─────────────────────────────────────────────────────────────
 
 const geminiClient = new OpenAI({
   apiKey: process.env.GEMINI_API_KEY || 'placeholder',
@@ -21,64 +22,150 @@ const openRouterClient = new OpenAI({
 });
 
 const DEFAULT_MODEL = process.env.DEFAULT_AI_MODEL || 'gemini-2.0-flash';
-const BACKUP_MODEL = process.env.BACKUP_AI_MODEL || 'openai/gpt-4o-mini';
+const BACKUP_MODEL  = process.env.BACKUP_AI_MODEL  || 'openai/gpt-4o-mini';
+
+// ─── JSON Extraction Helper ───────────────────────────────────────────────────
+
+/**
+ * Robustly extracts a JSON object from an AI response.
+ * Handles: raw JSON, markdown code fences (```json ... ```), extra prose.
+ */
+function extractJSON(raw) {
+  if (!raw || typeof raw !== 'string') {
+    throw new Error('Empty response from AI');
+  }
+
+  // 1. Strip markdown code fences
+  let cleaned = raw
+    .replace(/^```(?:json)?\s*/im, '')
+    .replace(/\s*```\s*$/im, '')
+    .trim();
+
+  // 2. Direct parse
+  try {
+    return JSON.parse(cleaned);
+  } catch (_) { /* continue */ }
+
+  // 3. Extract first { ... } block (handles prose before/after)
+  const match = cleaned.match(/\{[\s\S]*\}/);
+  if (match) {
+    try {
+      return JSON.parse(match[0]);
+    } catch (_) { /* continue */ }
+  }
+
+  // Log first 800 chars of bad response so devs can see what went wrong
+  logger.error('aiService', 'JSON extraction failed — raw response excerpt', {
+    excerpt: raw.substring(0, 800),
+    length: raw.length,
+  });
+  throw new Error('AI returned malformed JSON. Please try again.');
+}
 
 // ─── Core AI Caller with Fallback ────────────────────────────────────────────
 
 /**
  * Calls the primary AI (Gemini). Falls back to OpenRouter on error.
- * @param {Array} messages - OpenAI-format messages array
- * @param {Object} options - { jsonMode, temperature, maxTokens }
+ * @param {Array}  messages  - OpenAI-format messages array
+ * @param {Object} options   - { temperature, maxTokens, label }
  * @returns {Promise<string>} Raw text response
  */
 async function callAI(messages, options = {}) {
-  const { jsonMode = false, temperature = 0.7, maxTokens = 1200 } = options;
+  const { temperature = 0.7, maxTokens = 2500, label = 'call' } = options;
 
-  const baseParams = {
-    messages,
-    temperature,
-    max_tokens: maxTokens,
-    ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
-  };
+  const baseParams = { messages, temperature, max_tokens: maxTokens };
 
-  // Try primary (Gemini)
+  // ── Primary: Gemini ──────────────────────────────────────────
+  logger.ai('aiService', `[${label}] Calling primary model`, {
+    model: DEFAULT_MODEL,
+    messages: messages.length,
+    maxTokens,
+  });
+
+  const t0 = Date.now();
   try {
     const res = await geminiClient.chat.completions.create({
       ...baseParams,
       model: DEFAULT_MODEL,
     });
-    return res.choices[0].message.content;
+    const content   = res.choices[0].message.content;
+    const usage     = res.usage || {};
+    const elapsed   = Date.now() - t0;
+
+    logger.ai('aiService', `[${label}] Primary model responded`, {
+      model:         DEFAULT_MODEL,
+      promptTokens:  usage.prompt_tokens,
+      outputTokens:  usage.completion_tokens,
+      totalTokens:   usage.total_tokens,
+      responseChars: content?.length,
+      elapsedMs:     elapsed,
+    });
+
+    return content;
   } catch (primaryErr) {
-    console.warn(`⚠️  Primary AI (${DEFAULT_MODEL}) failed: ${primaryErr.message}`);
+    logger.warn('aiService', `[${label}] Primary AI failed — switching to backup`, {
+      model:   DEFAULT_MODEL,
+      error:   primaryErr.message,
+      elapsed: Date.now() - t0,
+    });
   }
 
-  // Fallback (OpenRouter)
+  // ── Fallback: OpenRouter ─────────────────────────────────────
+  logger.ai('aiService', `[${label}] Calling backup model`, {
+    model: BACKUP_MODEL,
+    maxTokens,
+  });
+
+  const t1 = Date.now();
   try {
     const res = await openRouterClient.chat.completions.create({
       ...baseParams,
       model: BACKUP_MODEL,
     });
-    return res.choices[0].message.content;
+    const content = res.choices[0].message.content;
+    const usage   = res.usage || {};
+    const elapsed = Date.now() - t1;
+
+    logger.ai('aiService', `[${label}] Backup model responded`, {
+      model:         BACKUP_MODEL,
+      promptTokens:  usage.prompt_tokens,
+      outputTokens:  usage.completion_tokens,
+      totalTokens:   usage.total_tokens,
+      responseChars: content?.length,
+      elapsedMs:     elapsed,
+    });
+
+    return content;
   } catch (backupErr) {
-    console.error(`❌ Backup AI (${BACKUP_MODEL}) also failed: ${backupErr.message}`);
+    logger.error('aiService', `[${label}] Both AI providers failed`, {
+      backup: BACKUP_MODEL,
+      error:  backupErr.message,
+    });
     throw new Error('AI service temporarily unavailable. Please try again.');
   }
 }
 
-// ─── Prompt 1: Journal Analysis ──────────────────────────────────────────────
+// ─── Prompt 1: Journal Analysis ───────────────────────────────────────────────
 
 /**
  * Deeply analyzes a student's journal entry using exam-specific context.
  * Returns a structured JSON object with triggers, patterns, and strategies.
  */
 async function analyzeJournal({ name, examType, moodScore, journalText, avgMood, pastTriggers }) {
-  const triggersContext =
-    pastTriggers && pastTriggers.length > 0
-      ? `Previously identified stress triggers: ${pastTriggers.join(', ')}`
-      : 'No previous triggers on record yet.';
+  logger.info('aiService', 'analyzeJournal — start', {
+    name, examType, moodScore,
+    journalLength: journalText?.length,
+    hasHistory: !!avgMood,
+    pastTriggerCount: pastTriggers?.length ?? 0,
+  });
 
-  const moodContext =
-    avgMood !== null ? `7-day mood average: ${avgMood}/10` : 'First entry — no historical mood data.';
+  const triggersContext = pastTriggers && pastTriggers.length > 0
+    ? `Previously identified stress triggers: ${pastTriggers.join(', ')}`
+    : 'No previous triggers on record yet.';
+
+  const moodContext = avgMood !== null
+    ? `7-day mood average: ${avgMood}/10`
+    : 'First entry — no historical mood data.';
 
   const messages = [
     {
@@ -126,12 +213,27 @@ Analyze this entry deeply. Return EXACTLY this JSON structure (no extra fields):
     },
   ];
 
-  const raw = await callAI(messages, { jsonMode: true, temperature: 0.5 });
+  const raw = await callAI(messages, {
+    temperature: 0.5,
+    maxTokens: 2500,   // ← increased: detailed JSON with strategies needs room
+    label: 'analyzeJournal',
+  });
 
   try {
-    return JSON.parse(raw);
-  } catch {
-    throw new Error('AI returned malformed analysis. Please try again.');
+    const result = extractJSON(raw);
+    logger.info('aiService', 'analyzeJournal — success', {
+      stressLevel: result.stress_level,
+      triggerCount: result.hidden_triggers?.length,
+      strategyCount: result.personalized_strategies?.length,
+      crisisFlag: result.crisis_flag,
+    });
+    return result;
+  } catch (err) {
+    logger.error('aiService', 'analyzeJournal — JSON parse failed', {
+      error: err.message,
+      rawLength: raw?.length,
+    });
+    throw new Error(err.message || 'AI returned malformed analysis. Please try again.');
   }
 }
 
@@ -139,25 +241,23 @@ Analyze this entry deeply. Return EXACTLY this JSON structure (no extra fields):
 
 /**
  * Conversational AI companion — warm, empathetic, exam-aware.
- * Never generic. Uses student's actual context from DB.
  */
-async function chatWithAura({
-  name,
-  examType,
-  userMessage,
-  chatHistory,
-  recentMoods,
-  triggers,
-}) {
-  const moodSummary =
-    recentMoods && recentMoods.length > 0
-      ? `Recent moods (past week): ${recentMoods.join(', ')} out of 10`
-      : 'New user — no mood history yet';
+async function chatWithAura({ name, examType, userMessage, chatHistory, recentMoods, triggers }) {
+  logger.info('aiService', 'chatWithAura — start', {
+    name, examType,
+    messageLength: userMessage?.length,
+    historyLength: chatHistory?.length,
+    moodDataPoints: recentMoods?.length,
+    knownTriggers: triggers?.length,
+  });
 
-  const triggerSummary =
-    triggers && triggers.length > 0
-      ? `Known stress triggers: ${triggers.join(', ')}`
-      : 'No triggers identified yet';
+  const moodSummary = recentMoods && recentMoods.length > 0
+    ? `Recent moods (past week): ${recentMoods.join(', ')} out of 10`
+    : 'New user — no mood history yet';
+
+  const triggerSummary = triggers && triggers.length > 0
+    ? `Known stress triggers: ${triggers.join(', ')}`
+    : 'No triggers identified yet';
 
   const systemPrompt = `You are Aura, a warm and deeply empathetic AI wellness companion for ${name}, who is preparing for ${examType}.
 
@@ -186,7 +286,17 @@ Your communication style:
     { role: 'user', content: userMessage },
   ];
 
-  return await callAI(messages, { temperature: 0.75, maxTokens: 500 });
+  const response = await callAI(messages, {
+    temperature: 0.75,
+    maxTokens: 600,
+    label: 'chatWithAura',
+  });
+
+  logger.info('aiService', 'chatWithAura — success', {
+    responseLength: response?.length,
+  });
+
+  return response;
 }
 
 // ─── Prompt 3: Weekly Insights ────────────────────────────────────────────────
@@ -195,7 +305,12 @@ Your communication style:
  * Generates a weekly pattern analysis across all journal entries.
  */
 async function generateWeeklyInsights({ name, examType, entries }) {
+  logger.info('aiService', 'generateWeeklyInsights — start', {
+    name, examType, entryCount: entries?.length,
+  });
+
   if (!entries || entries.length === 0) {
+    logger.info('aiService', 'generateWeeklyInsights — skipped (no data)');
     return {
       hasData: false,
       message: 'Keep journaling daily — your first weekly insight will appear after a few entries!',
@@ -234,12 +349,26 @@ Return EXACTLY this JSON:
     },
   ];
 
-  const raw = await callAI(messages, { jsonMode: true, temperature: 0.5 });
+  const raw = await callAI(messages, {
+    temperature: 0.5,
+    maxTokens: 1500,
+    label: 'generateWeeklyInsights',
+  });
 
   try {
-    return JSON.parse(raw);
-  } catch {
-    throw new Error('Failed to parse weekly insights. Please try again.');
+    const result = extractJSON(raw);
+    logger.info('aiService', 'generateWeeklyInsights — success', {
+      weeklyTrend: result.weekly_trend,
+      averageMood: result.average_mood,
+      triggerCount: result.top_triggers?.length,
+    });
+    return result;
+  } catch (err) {
+    logger.error('aiService', 'generateWeeklyInsights — JSON parse failed', {
+      error: err.message,
+      rawLength: raw?.length,
+    });
+    throw new Error(err.message || 'Failed to parse weekly insights. Please try again.');
   }
 }
 
