@@ -34,6 +34,7 @@ let state = {
   chatSending: false,
   moodChart: null,
   lastAnalysis: null,
+  insightsGenerated: false,  // true once user has explicitly created insights
 };
 
 // ── User Identity (localStorage, no server session) ───────────
@@ -120,7 +121,8 @@ function activateTab(tabName) {
 
   // Load data on tab switch
   if (tabName === 'dashboard') { loadDashboard(); }
-  if (tabName === 'insights')  { loadInsights(); }
+  // Insights: only show landing — never auto-generate
+  if (tabName === 'insights' && !state.insightsGenerated) { showInsightsLanding(); }
 }
 
 function initTabs() {
@@ -573,13 +575,82 @@ function renderWeeklySummary(entries) {
 }
 
 // ── Insights Panel ────────────────────────────────────────────
+
+/** Shows the "Create Insights" landing — no AI call made yet */
+function showInsightsLanding() {
+  const content     = document.getElementById('insights-content');
+  const refreshBtn  = document.getElementById('refresh-insights-btn');
+  if (refreshBtn) { refreshBtn.style.display = 'none'; }
+
+  content.innerHTML = '';
+
+  const landing = document.createElement('div');
+  landing.className = 'insights-landing';
+  landing.setAttribute('aria-label', 'Generate weekly insights');
+
+  const icon = document.createElement('div');
+  icon.className = 'insights-landing-icon';
+  icon.setAttribute('aria-hidden', 'true');
+  icon.textContent = '🔍';
+
+  const title = document.createElement('h2');
+  title.className = 'insights-landing-title';
+  setTextSafe(title, 'Your Weekly Insights');
+
+  const desc = document.createElement('p');
+  desc.className = 'insights-landing-desc';
+  setTextSafe(desc, 'Get AI-powered pattern analysis from your journal entries — stress triggers, emotional trends, and personalized guidance for your ' + state.user.examType + ' journey.');
+
+  const features = document.createElement('div');
+  features.className = 'insights-features';
+  [
+    { icon: '🎯', label: 'Hidden stress triggers' },
+    { icon: '📈', label: 'Weekly mood trend' },
+    { icon: '💪', label: 'Strengths & focus areas' },
+    { icon: '💌', label: 'Personalized message' },
+  ].forEach(({ icon: fi, label }) => {
+    const chip = document.createElement('div');
+    chip.className = 'insights-feature-chip';
+    const chipIcon = document.createElement('span');
+    chipIcon.setAttribute('aria-hidden', 'true');
+    chipIcon.textContent = fi;
+    const chipLabel = document.createElement('span');
+    setTextSafe(chipLabel, label);
+    chip.appendChild(chipIcon);
+    chip.appendChild(chipLabel);
+    features.appendChild(chip);
+  });
+
+  const btn = document.createElement('button');
+  btn.className = 'btn btn-primary btn-create-insights';
+  btn.id = 'create-insights-btn';
+  btn.setAttribute('aria-label', 'Generate weekly insights');
+  btn.innerHTML = '<span aria-hidden="true">✨</span> Create Insights';
+
+  btn.addEventListener('click', () => loadInsights());
+
+  landing.appendChild(icon);
+  landing.appendChild(title);
+  landing.appendChild(desc);
+  landing.appendChild(features);
+  landing.appendChild(btn);
+  content.appendChild(landing);
+}
+
+/** Fetches and renders insights — called by Create or Refresh */
 async function loadInsights() {
-  const content = document.getElementById('insights-content');
+  const content    = document.getElementById('insights-content');
+  const refreshBtn = document.getElementById('refresh-insights-btn');
+
+  // Show loading state
   content.innerHTML = `
     <div class="empty-state insights-placeholder">
       <div class="loading-spinner" style="width:40px;height:40px;margin:0 auto 16px;" aria-hidden="true"></div>
       <p>Generating your weekly insights...</p>
     </div>`;
+
+  // Show refresh button, hide create button if it exists
+  if (refreshBtn) { refreshBtn.style.display = ''; }
 
   try {
     const params = new URLSearchParams({
@@ -587,9 +658,15 @@ async function loadInsights() {
       examType: state.user.examType,
     });
     const { insights, moodHistory } = await apiFetch(`${API.INSIGHTS}?${params}`);
+    state.insightsGenerated = true;
     renderInsights(insights, moodHistory);
   } catch (err) {
-    content.innerHTML = `<div class="empty-state"><p style="color:var(--danger)">${sanitizeText(err.message)}</p></div>`;
+    content.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon" aria-hidden="true">⚠️</div>
+        <p style="color:var(--danger);margin-bottom:16px">${sanitizeText(err.message)}</p>
+        <button class="btn btn-secondary" onclick="loadInsights()">Try Again</button>
+      </div>`;
   }
 }
 
