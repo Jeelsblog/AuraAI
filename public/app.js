@@ -461,6 +461,8 @@ function renderEntries(entries, container) {
   }
 
   container.innerHTML = '';
+  const fragment = document.createDocumentFragment();
+  
   entries.slice(0, 15).forEach((entry) => {
     const card = document.createElement('article');
     card.className = 'entry-card';
@@ -506,8 +508,10 @@ function renderEntries(entries, container) {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); preview.classList.toggle('clamped'); }
     });
 
-    container.appendChild(card);
+    fragment.appendChild(card);
   });
+  
+  container.appendChild(fragment);
 }
 
 function renderMoodChart(moodData) {
@@ -963,11 +967,28 @@ async function loadChatHistory() {
     const messages = document.getElementById('chat-messages');
     // Clear greeting temporarily if we have real history
     messages.innerHTML = '';
+    
+    const fragment = document.createDocumentFragment();
 
     history.forEach((msg) => {
-      if (msg.role === 'user') { appendUserMessage(msg.content); }
-      else { appendAuraMessage(msg.content); }
+      const div = document.createElement('div');
+      div.className = `chat-message ${msg.role === 'user' ? 'user' : 'assistant'}`;
+      
+      const bubble = document.createElement('div');
+      bubble.className = 'message-bubble';
+      setTextSafe(bubble, msg.content);
+      
+      const time = document.createElement('div');
+      time.className = 'message-time';
+      setTextSafe(time, new Date(msg.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }));
+      
+      div.appendChild(bubble);
+      div.appendChild(time);
+      fragment.appendChild(div);
     });
+    
+    messages.appendChild(fragment);
+    messages.scrollTop = messages.scrollHeight;
   } catch {
     // Silently fail — history is optional
   }

@@ -36,7 +36,7 @@ function extractJSON(raw) {
   }
 
   // 1. Strip markdown code fences
-  let cleaned = raw
+  const cleaned = raw
     .replace(/^```(?:json)?\s*/im, '')
     .replace(/\s*```\s*$/im, '')
     .trim();

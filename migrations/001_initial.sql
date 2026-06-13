@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS journal_entries (
   mood_score    SMALLINT    NOT NULL CHECK (mood_score BETWEEN 1 AND 10),
   journal_text  TEXT        NOT NULL,
   ai_analysis   JSONB,
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT fk_journal_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Chat messages: conversational AI companion history
@@ -31,7 +32,8 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   user_id     UUID        NOT NULL,
   role        VARCHAR(10) NOT NULL CHECK (role IN ('user', 'assistant')),
   content     TEXT        NOT NULL,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT fk_chat_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 -- Indexes for fast per-user queries

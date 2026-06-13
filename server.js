@@ -5,6 +5,7 @@ require('dotenv').config();
 const express    = require('express');
 const helmet     = require('helmet');
 const rateLimit  = require('express-rate-limit');
+const compression = require('compression');
 const path       = require('path');
 
 const { migrate }      = require('./db/migrate');
@@ -60,7 +61,8 @@ app.use('/api/journal', aiLimiter);
 app.use('/api/chat', aiLimiter);
 app.use('/api/insights', aiLimiter);
 
-// ─── Body Parsing ─────────────────────────────────────────────────────────────
+// ─── Body Parsing & Compression ───────────────────────────────────────────────
+app.use(compression());
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: false, limit: '10kb' }));
 
@@ -76,8 +78,8 @@ app.use((req, _res, next) => {
   next();
 });
 
-// ─── Static Files (Frontend) ─────────────────────────────────────────────────
-app.use(express.static(path.join(__dirname, 'public')));
+// ─── Static Files (Frontend) ─────────────────────────────────────────────
+app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1d' }));
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);

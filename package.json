@@ -10,10 +10,18 @@
     "lint": "eslint . --ext .js",
     "format": "prettier --write ."
   },
-  "keywords": ["mental-wellness", "ai", "students", "neet", "jee", "upsc"],
+  "keywords": [
+    "mental-wellness",
+    "ai",
+    "students",
+    "neet",
+    "jee",
+    "upsc"
+  ],
   "author": "AuraAI Team",
   "license": "MIT",
   "dependencies": {
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
@@ -33,7 +41,9 @@
   },
   "jest": {
     "testEnvironment": "node",
-    "testMatch": ["**/tests/**/*.test.js"],
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
     "coverageDirectory": "coverage",
     "collectCoverageFrom": [
       "controllers/**/*.js",
