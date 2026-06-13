@@ -139,12 +139,13 @@ function initTabs() {
 
 // ── Onboarding ────────────────────────────────────────────────
 function initOnboarding() {
-  const overlay   = document.getElementById('onboarding-overlay');
-  const form      = document.getElementById('onboarding-form');
-  const nameInput = document.getElementById('onboard-name');
-  const examInput = document.getElementById('onboard-exam');
-  const submitBtn = document.getElementById('onboard-submit');
-  const examBtns  = document.querySelectorAll('.exam-option');
+  const overlay     = document.getElementById('onboarding-overlay');
+  const form        = document.getElementById('onboarding-form');
+  const emailInput  = document.getElementById('onboard-email');
+  const nameInput   = document.getElementById('onboard-name');
+  const examInput   = document.getElementById('onboard-exam');
+  const submitBtn   = document.getElementById('onboard-submit');
+  const examBtns    = document.querySelectorAll('.exam-option');
 
   let selectedExam = '';
 
@@ -162,28 +163,63 @@ function initOnboarding() {
     });
   });
 
+  emailInput.addEventListener('input', validateOnboarding);
   nameInput.addEventListener('input', validateOnboarding);
 
   function validateOnboarding() {
-    const valid = nameInput.value.trim().length >= 1 && selectedExam;
+    const validEmail = emailInput.value.trim().length >= 3 && emailInput.value.includes('@');
+    const validName = nameInput.value.trim().length >= 1;
+    const valid = validEmail && validName && selectedExam;
     submitBtn.disabled = !valid;
   }
 
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const email = emailInput.value.trim().toLowerCase();
     const name = sanitizeText(nameInput.value.trim());
-    if (!name || !selectedExam) { return; }
+    if (!email || !name || !selectedExam) { return; }
 
-    const user = { id: generateUUID(), name, examType: selectedExam };
-    saveUser(user);
-    state.user = user;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="loading-spinner"></span> Setting up...';
 
-    overlay.style.display = 'none';
-    initApp();
+    try {
+      // Create user in backend or fetch existing
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name, examType: selectedExam })
+      });
+      const data = await res.json();
+      
+      if (!res.ok) throw new Error(data.error || 'Failed to login');
+
+      // The DB ID is now our universal identity token
+      const user = {
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.name,
+        examType: data.user.examType
+      };
+
+      saveUser(user);
+      state.user = user;
+
+      overlay.style.display = 'none';
+      if (data.isNew) {
+        showToast('Welcome to AuraAI! ✨', 'success');
+      } else {
+        showToast(`Welcome back, ${user.name}! 🌸`, 'success');
+      }
+      initApp();
+    } catch (err) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = 'Start my wellness journey →';
+      showToast(err.message, 'error');
+    }
   });
 
   // Focus first input
-  setTimeout(() => nameInput.focus(), 100);
+  setTimeout(() => emailInput.focus(), 100);
 }
 
 // ── Header ────────────────────────────────────────────────────

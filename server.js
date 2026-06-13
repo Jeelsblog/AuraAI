@@ -11,6 +11,7 @@ const { migrate }      = require('./db/migrate');
 const journalRoutes    = require('./controllers/journalController');
 const chatRoutes       = require('./controllers/chatController');
 const insightsRoutes   = require('./controllers/insightsController');
+const authRoutes       = require('./controllers/authController');
 const logger           = require('./utils/logger');
 
 const app = express();
@@ -54,6 +55,7 @@ const aiLimiter = rateLimit({
 });
 
 app.use('/api/', apiLimiter);
+app.use('/api/auth', apiLimiter);
 app.use('/api/journal', aiLimiter);
 app.use('/api/chat', aiLimiter);
 app.use('/api/insights', aiLimiter);
@@ -78,6 +80,7 @@ app.use((req, _res, next) => {
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ─── API Routes ───────────────────────────────────────────────────────────────
+app.use('/api/auth', authRoutes);
 app.use('/api/journal', journalRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/insights', insightsRoutes);

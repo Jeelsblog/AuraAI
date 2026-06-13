@@ -19,6 +19,14 @@ const chatSchema = z.object({
   examType: z.enum(EXAM_TYPES),
 });
 
+/** Schema for email login/onboarding */
+const authSchema = z.object({
+  email: z.string().email('Valid email is required').max(255).trim().toLowerCase(),
+  name: z.string().min(1, 'Name is required').max(100).trim(),
+  examType: z.enum(EXAM_TYPES, { errorMap: () => ({ message: 'Invalid exam type' }) }),
+});
+
+
 /** UUID validator for x-user-id header */
 const uuidSchema = z.string().uuid('x-user-id must be a valid UUID');
 
@@ -35,4 +43,4 @@ function validateUserId(req, res, next) {
   next();
 }
 
-module.exports = { journalSchema, chatSchema, validateUserId, EXAM_TYPES };
+module.exports = { journalSchema, chatSchema, authSchema, validateUserId, EXAM_TYPES };

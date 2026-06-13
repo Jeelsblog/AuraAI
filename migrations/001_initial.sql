@@ -4,6 +4,16 @@
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
+-- Users table for email-based identity
+CREATE TABLE IF NOT EXISTS users (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email       VARCHAR(255) UNIQUE NOT NULL,
+  name        VARCHAR(100) NOT NULL,
+  exam_type   VARCHAR(20) NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+
 -- Journal entries: mood logs + open-ended journal + AI analysis
 CREATE TABLE IF NOT EXISTS journal_entries (
   id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
