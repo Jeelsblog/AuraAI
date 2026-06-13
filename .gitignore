@@ -22,3 +22,7 @@ Thumbs.db
 # Build artifacts
 dist/
 build/
+
+# Hack2Skill Evaluations
+AI-Agent-Guild--Scoring-95+-on-Hack2Skill---PromptWars-Evaluations.md
+
