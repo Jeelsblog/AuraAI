@@ -842,6 +842,17 @@ p  { color: var(--text-secondary); font-size: 0.9rem; }
 .onboarding-card h1 { margin-bottom: 8px; }
 .onboarding-card > p { margin-bottom: 32px; }
 .onboarding-form { text-align: left; display: flex; flex-direction: column; gap: 20px; }
+.onboard-step2-hint {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  text-align: center;
+  padding: 10px 16px;
+  background: rgba(139, 92, 246, 0.08);
+  border-radius: 8px;
+  border-left: 3px solid var(--primary);
+}
+
 .exam-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

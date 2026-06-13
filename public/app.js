@@ -139,16 +139,68 @@ function initTabs() {
 
 // ── Onboarding ────────────────────────────────────────────────
 function initOnboarding() {
-  const overlay     = document.getElementById('onboarding-overlay');
-  const form        = document.getElementById('onboarding-form');
-  const emailInput  = document.getElementById('onboard-email');
-  const nameInput   = document.getElementById('onboard-name');
-  const examInput   = document.getElementById('onboard-exam');
-  const submitBtn   = document.getElementById('onboard-submit');
-  const examBtns    = document.querySelectorAll('.exam-option');
+  const overlay        = document.getElementById('onboarding-overlay');
+  const step1          = document.getElementById('onboard-step-1');
+  const step2          = document.getElementById('onboard-step-2');
+  const emailForm      = document.getElementById('onboarding-email-form');
+  const profileForm    = document.getElementById('onboarding-profile-form');
+  const emailInput     = document.getElementById('onboard-email');
+  const nameInput      = document.getElementById('onboard-name');
+  const examInput      = document.getElementById('onboard-exam');
+  const emailSubmitBtn = document.getElementById('onboard-email-submit');
+  const submitBtn      = document.getElementById('onboard-submit');
+  const examBtns       = document.querySelectorAll('.exam-option');
 
   let selectedExam = '';
+  let pendingEmail = '';
 
+  // ── Step 1: Email validation ──
+  emailInput.addEventListener('input', () => {
+    const v = emailInput.value.trim();
+    emailSubmitBtn.disabled = !(v.length >= 3 && v.includes('@') && v.includes('.'));
+  });
+
+  emailForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    pendingEmail = emailInput.value.trim().toLowerCase();
+    if (!pendingEmail) { return; }
+
+    emailSubmitBtn.disabled = true;
+    emailSubmitBtn.innerHTML = '<span class="loading-spinner"></span> Checking...';
+
+    try {
+      const res  = await fetch(`/api/auth/check-email?email=${encodeURIComponent(pendingEmail)}`);
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || 'Failed to check email');
+
+      if (data.exists) {
+        // Existing user → go straight to dashboard
+        const user = {
+          id:       data.user.id,
+          email:    data.user.email,
+          name:     data.user.name,
+          examType: data.user.examType,
+        };
+        saveUser(user);
+        state.user = user;
+        overlay.style.display = 'none';
+        showToast(`Welcome back, ${user.name}! 🌸`, 'success');
+        initApp();
+      } else {
+        // New user → show step 2
+        step1.hidden = true;
+        step2.hidden = false;
+        setTimeout(() => nameInput.focus(), 50);
+      }
+    } catch (err) {
+      emailSubmitBtn.disabled = false;
+      emailSubmitBtn.innerHTML = 'Continue →';
+      showToast(err.message, 'error');
+    }
+  });
+
+  // ── Step 2: Name + Exam ──
   examBtns.forEach((btn) => {
     btn.addEventListener('click', () => {
       examBtns.forEach((b) => { b.classList.remove('selected'); b.setAttribute('aria-pressed', 'false'); });
@@ -156,60 +208,48 @@ function initOnboarding() {
       btn.setAttribute('aria-pressed', 'true');
       selectedExam = btn.dataset.exam;
       examInput.value = selectedExam;
-      validateOnboarding();
+      validateProfile();
     });
     btn.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); btn.click(); }
     });
   });
 
-  emailInput.addEventListener('input', validateOnboarding);
-  nameInput.addEventListener('input', validateOnboarding);
+  nameInput.addEventListener('input', validateProfile);
 
-  function validateOnboarding() {
-    const validEmail = emailInput.value.trim().length >= 3 && emailInput.value.includes('@');
-    const validName = nameInput.value.trim().length >= 1;
-    const valid = validEmail && validName && selectedExam;
-    submitBtn.disabled = !valid;
+  function validateProfile() {
+    submitBtn.disabled = !(nameInput.value.trim().length >= 1 && selectedExam);
   }
 
-  form.addEventListener('submit', async (e) => {
+  profileForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = emailInput.value.trim().toLowerCase();
     const name = sanitizeText(nameInput.value.trim());
-    if (!email || !name || !selectedExam) { return; }
+    if (!name || !selectedExam || !pendingEmail) { return; }
 
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<span class="loading-spinner"></span> Setting up...';
 
     try {
-      // Create user in backend or fetch existing
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
+      const res  = await fetch('/api/auth/login', {
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name, examType: selectedExam })
+        body:    JSON.stringify({ email: pendingEmail, name, examType: selectedExam }),
       });
       const data = await res.json();
-      
-      if (!res.ok) throw new Error(data.error || 'Failed to login');
 
-      // The DB ID is now our universal identity token
+      if (!res.ok) throw new Error(data.error || 'Failed to create account');
+
       const user = {
-        id: data.user.id,
-        email: data.user.email,
-        name: data.user.name,
-        examType: data.user.examType
+        id:       data.user.id,
+        email:    data.user.email,
+        name:     data.user.name,
+        examType: data.user.examType,
       };
-
       saveUser(user);
       state.user = user;
 
       overlay.style.display = 'none';
-      if (data.isNew) {
-        showToast('Welcome to AuraAI! ✨', 'success');
-      } else {
-        showToast(`Welcome back, ${user.name}! 🌸`, 'success');
-      }
+      showToast('Welcome to AuraAI! ✨', 'success');
       initApp();
     } catch (err) {
       submitBtn.disabled = false;
@@ -218,7 +258,7 @@ function initOnboarding() {
     }
   });
 
-  // Focus first input
+  // Focus email on open
   setTimeout(() => emailInput.focus(), 100);
 }
 

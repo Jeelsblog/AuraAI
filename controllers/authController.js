@@ -8,6 +8,35 @@ const { findOrCreateUser } = require('../services/userService');
 const logger = require('../utils/logger');
 
 /**
+ * GET /api/auth/check-email?email=...
+ * Returns whether the email exists in the database.
+ */
+router.get('/check-email', async (req, res) => {
+  const email = (req.query.email || '').trim().toLowerCase();
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ error: 'Valid email is required' });
+  }
+  try {
+    const { findOrCreateUser } = require('../services/userService');
+    // Peek — just look up, don't create
+    const pool = require('../db');
+    const result = await pool.query(
+      'SELECT id, email, name, exam_type AS "examType" FROM users WHERE email = $1',
+      [email]
+    );
+    if (result.rows.length > 0) {
+      logger.info('authController', 'GET /api/auth/check-email — existing user', { email });
+      return res.json({ exists: true, user: result.rows[0] });
+    }
+    logger.info('authController', 'GET /api/auth/check-email — new user', { email });
+    return res.json({ exists: false });
+  } catch (err) {
+    logger.error('authController', 'GET /api/auth/check-email — error', { error: err.message });
+    return res.status(500).json({ error: 'Failed to check email' });
+  }
+});
+
+/**
  * POST /api/auth/login
  * Frictionless login/signup: Returns a persistent database user ID for a given email.
  */
